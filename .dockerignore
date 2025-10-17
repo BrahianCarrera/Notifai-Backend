@@ -1,0 +1,60 @@
+# Dependencias de Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Archivos de entorno
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs/
+*.log
+
+# Archivos temporales
+tmp/
+temp/
+
+# Archivos de cobertura
+coverage/
+.nyc_output
+
+# Archivos de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Documentación
+README.md
+docs/
+
+# Archivos de test
+test/
+tests/
+__tests__/
+
+# Archivos de configuración de desarrollo
+.eslintrc*
+.prettierrc*
+jest.config.*
+
+# Uploads (se creará en runtime)
+uploads/
