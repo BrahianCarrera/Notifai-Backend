@@ -159,7 +159,7 @@ const getArticleById = async (req, res) => {
   }
 };
 
-// Crear nuevo artículo (solo administradores)
+// Crear nuevo artículo (sin autenticación requerida)
 const createArticle = async (req, res) => {
   try {
     const {
@@ -172,7 +172,34 @@ const createArticle = async (req, res) => {
       tags
     } = req.body;
 
-    const authorId = req.user.id;
+    // Obtener o crear usuario del sistema para artículos sin autenticación
+    let authorId = req.user?.id;
+    
+    if (!authorId) {
+      // Buscar usuario del sistema o crear uno
+      const systemUserResult = await query(
+        'SELECT id FROM users WHERE email = $1',
+        ['system@notifai.com']
+      );
+      
+      if (systemUserResult.rows.length === 0) {
+        // Crear usuario del sistema
+        const createSystemUserResult = await query(`
+          INSERT INTO users (email, password, name, role, is_active) 
+          VALUES ($1, $2, $3, $4, $5) 
+          RETURNING id
+        `, [
+          'system@notifai.com',
+          'system_password_hash', // Contraseña dummy
+          'Sistema Notifai',
+          'admin',
+          true
+        ]);
+        authorId = createSystemUserResult.rows[0].id;
+      } else {
+        authorId = systemUserResult.rows[0].id;
+      }
+    }
 
     const result = await query(`
       INSERT INTO articles (

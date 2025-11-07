@@ -22,7 +22,7 @@ router.get('/', optionalAuth, validateArticleQuery, getArticles);
 router.get('/:id', optionalAuth, validateId, getArticleById);
 
 // Rutas protegidas
-router.post('/', authenticateSession, requireAdmin, validateArticleCreation, createArticle);
+router.post('/', validateArticleCreation, createArticle);
 router.put('/:id', authenticateSession, validateId, validateArticleUpdate, updateArticle);
 router.delete('/:id', authenticateSession, validateId, deleteArticle);
 
