@@ -1,7 +1,12 @@
 import AppDrawer, { AppDrawerRef } from "@/components/AppDrawer";
 import ArticleCard from "@/components/Card";
 import FeaturedCard from "@/components/FeaturedCard";
-import { apiRequest, handleApiResponse } from "@/utils/api";
+import {
+  apiToggleFavorite,
+  apiToggleLike,
+  fetchArticles,
+  fetchCategories,
+} from "@/utils/apiService";
 import { Href, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, View } from "react-native";
@@ -22,6 +27,8 @@ type UiArticle = {
   category: string;
   imageUrl: string;
   views: string;
+  isBookmarked?: boolean;
+  likes: number;
 };
 
 type Category = {
@@ -53,22 +60,25 @@ export default function Index() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch categories on mount
   useEffect(() => {
     let isMounted = true;
-    (async () => {
+    const loadCategories = async () => {
       try {
-        const res = await apiRequest("/categories");
-        const json = await handleApiResponse(res);
-        const fetchedCategories: Category[] = (
-          json?.data?.categories || []
-        ).map((c: any) => ({ id: c.id, name: c.name }));
+        const fetchedCategories: any[] = await fetchCategories();
+        const mappedCategories: Category[] = fetchedCategories.map(
+          (c: any) => ({
+            id: c.id,
+            name: c.name,
+          })
+        );
+
         if (isMounted)
-          setCategories([{ id: 0, name: "Todo" }, ...fetchedCategories]);
+          setCategories([{ id: 0, name: "Todo" }, ...mappedCategories]);
       } catch (e: any) {
         if (isMounted) setError(e?.message || "Error cargando categorías");
       }
-    })();
+    };
+    loadCategories();
     return () => {
       isMounted = false;
     };
@@ -77,37 +87,39 @@ export default function Index() {
   useEffect(() => {
     let isMounted = true;
     const controller = new AbortController();
+
     const timeout = setTimeout(async () => {
       setLoading(true);
       setError(null);
       try {
-        const params = new URLSearchParams();
-        params.set("page", "1");
-        params.set("limit", "10");
-        if (searchQuery.trim()) params.set("search", searchQuery.trim());
-        if (selectedCategory.id !== 0)
-          params.set("category", String(selectedCategory.id));
-        params.set("sort", "published_at");
-        params.set("order", "desc");
-
-        const res = await apiRequest(`/articles?${params.toString()}`, {
-          signal: controller.signal as any,
+        const data = await fetchArticles({
+          page: 1,
+          limit: 10,
+          search: searchQuery.trim(),
+          category: selectedCategory.id,
+          sort: "published_at",
+          order: "desc",
+          signal: controller.signal,
         });
 
-        console.log(res);
-        const json = await handleApiResponse(res);
-        const apiArticles: any[] = json?.data?.articles || [];
-        const mapped: UiArticle[] = apiArticles.map((a: any) => ({
-          id: String(a.id),
-          title: a.title,
-          summary: a.summary,
-          category: a.category_name || "",
-          imageUrl: a.image_url || "https://placehold.co/600x400/png",
-          views: formatViews(a.views_count),
-        }));
-        if (isMounted) setArticles(mapped);
+        if (data && isMounted) {
+          const apiArticles: any[] = data.articles || [];
+          const mapped: UiArticle[] = apiArticles.map((a: any) => ({
+            id: String(a.id),
+            title: a.title,
+            summary: a.summary,
+            category: a.category_name || "",
+            imageUrl: a.image_url || "https://placehold.co/600x400/png",
+            views: formatViews(a.views_count),
+            isBookmarked: a.is_favorite,
+            likes: a.likes_count,
+          }));
+          setArticles(mapped);
+        }
       } catch (e: any) {
-        if (isMounted) setError(e?.message || "Error cargando artículos");
+        if (isMounted && e.name !== "AbortError") {
+          setError(e?.message || "Error cargando artículos");
+        }
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -118,27 +130,77 @@ export default function Index() {
       clearTimeout(timeout);
       controller.abort();
     };
-  }, [selectedCategory, searchQuery]);
+  }, [selectedCategory.id, searchQuery]);
 
   const featured = useMemo<UiArticle | null>(() => {
     if (!articles.length) return null;
     return articles[0];
   }, [articles]);
 
+  const handleToggleFavorite = async (id: string) => {
+    try {
+      const response = await apiToggleFavorite(id);
+
+      if (response.success) {
+        const newFavoriteState: boolean =
+          response.data?.is_favorite ?? response.is_favorite;
+
+        if (newFavoriteState !== undefined) {
+          setArticles((prev) =>
+            prev.map((a) =>
+              a.id === id ? { ...a, isBookmarked: newFavoriteState } : a
+            )
+          );
+        }
+      }
+    } catch (e: any) {
+      console.error("Error toggling favorite:", e);
+    }
+  };
+
+  const handleToggleLike = async (id: string) => {
+    try {
+      const response = await apiToggleLike(id);
+      if (response.success) {
+        const newLikesCount =
+          response.data?.likes_count ?? response.likes_count;
+
+        if (newLikesCount !== undefined) {
+          setArticles((prev) =>
+            prev.map((a) =>
+              a.id === id
+                ? {
+                    ...a,
+                    likes: newLikesCount,
+                  }
+                : a
+            )
+          );
+        }
+      }
+    } catch (e: any) {
+      console.error("Error toggling like:", e);
+      window.alert("Error al actualizar like: " + e.message);
+    }
+  };
+
+  const handleCardPress = (id: string) => {
+    console.log(`Abriendo detalles del artículo ID: ${id}`);
+    // router.push(`/article/${id}`);
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <AppDrawer
         ref={drawerRef}
         onProfilePress={() => {
-          // TODO: Navegar a la pantalla de perfil cuando esté disponible
-          console.log("Navegar a Perfil");
+          router.push("/profile" as Href);
         }}
         onHomePress={() => {
           router.push("/home" as Href);
         }}
         onBookmarksPress={() => {
-          // TODO: Navegar a la pantalla de marcadores cuando esté disponible
-          console.log("Navegar a Marcadores");
+          router.push("/bookmarks" as Href);
         }}
         onHistoryPress={() => {
           // TODO: Navegar a la pantalla de historial cuando esté disponible
@@ -231,6 +293,10 @@ export default function Index() {
                 id={item.id}
                 title={item.title}
                 summary={item.summary}
+                likes={item.likes ?? 0}
+                isBookmarked={item.isBookmarked ?? false}
+                onToggleFavorite={handleToggleFavorite}
+                onToggleLike={handleToggleLike}
                 category={item.category}
                 imageUrl={item.imageUrl}
                 views={item.views}

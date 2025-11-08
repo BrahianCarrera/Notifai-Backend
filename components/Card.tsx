@@ -1,6 +1,6 @@
 import * as React from "react";
-import { Image, View } from "react-native";
-import { Card, Chip, IconButton, Text } from "react-native-paper";
+import { Image, StyleSheet, View } from "react-native";
+import { Card, Chip, IconButton, Text, useTheme } from "react-native-paper";
 
 type ArticleCardProps = {
   id: string;
@@ -9,7 +9,11 @@ type ArticleCardProps = {
   category: string;
   imageUrl: string;
   views: string;
+  likes: number;
+  isBookmarked: boolean;
   onPress?: () => void;
+  onToggleFavorite: (id: string) => void;
+  onToggleLike: (id: string) => void;
 };
 
 const ArticleCard: React.FC<ArticleCardProps> = ({
@@ -19,53 +23,149 @@ const ArticleCard: React.FC<ArticleCardProps> = ({
   category,
   imageUrl,
   views,
+  likes,
+  isBookmarked,
   onPress,
+  onToggleFavorite,
+  onToggleLike,
 }) => {
+  const theme = useTheme();
+
   return (
-    <Card
-      key={id}
-      mode="outlined"
-      style={{ borderRadius: 16 }}
-      onPress={onPress}
-    >
-      <View
-        style={{
-          flexDirection: "row",
-          padding: 12,
-          gap: 12,
-          alignItems: "center",
-        }}
-      >
-        <Image
-          source={{ uri: imageUrl }}
-          style={{ width: 96, height: 72, borderRadius: 12 }}
-          resizeMode="cover"
-        />
-        <View style={{ flex: 1 }}>
-          <View style={{ marginBottom: 4 }}>
-            <Chip compact mode="flat">
-              {category}
-            </Chip>
-          </View>
-          <Text variant="titleSmall">{title}</Text>
-          <Text variant="bodySmall" style={{ opacity: 0.7 }} numberOfLines={2}>
-            {summary}
-          </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-              marginTop: 8,
-            }}
+    <Card key={id} mode="outlined" style={styles.card} onPress={onPress}>
+      <Image
+        source={{ uri: imageUrl }}
+        style={styles.image}
+        resizeMode="cover"
+        onError={(e) =>
+          console.error("Error loading image:", e.nativeEvent.error)
+        }
+      />
+
+      <View style={styles.textContainer}>
+        <View style={styles.chipContainer}>
+          <Chip
+            compact
+            mode="flat"
+            style={{ backgroundColor: theme.colors.primaryContainer }}
           >
-            <IconButton icon="eye-outline" size={16} onPress={() => {}} />
-            <Text>{views}</Text>
+            <Text
+              style={{
+                color: theme.colors.onPrimaryContainer,
+                fontWeight: "bold",
+                fontSize: 10,
+              }}
+            >
+              {category}
+            </Text>
+          </Chip>
+        </View>
+
+        <Text variant="titleSmall" style={styles.title} numberOfLines={2}>
+          {title}
+        </Text>
+        <Text variant="bodySmall" style={styles.summary} numberOfLines={3}>
+          {summary}
+        </Text>
+
+        <View style={styles.metricsContainer}>
+          <View style={styles.metricItem}>
+            <IconButton
+              icon="eye-outline"
+              size={16}
+              iconColor={theme.colors.onSurfaceVariant}
+              onPress={() => {}}
+              style={styles.iconButton}
+            />
+            <Text variant="bodySmall" style={styles.metricText}>
+              {views}
+            </Text>
           </View>
+
+          <View style={styles.metricItem}>
+            <IconButton
+              icon="heart-outline"
+              size={16}
+              iconColor={theme.colors.error}
+              onPress={() => onToggleLike(id)}
+              style={styles.iconButton}
+            />
+            <Text variant="bodySmall" style={styles.metricText}>
+              {likes}
+            </Text>
+          </View>
+
+          <IconButton
+            icon={isBookmarked ? "bookmark" : "bookmark-outline"}
+            size={20}
+            iconColor={
+              isBookmarked
+                ? theme.colors.primary
+                : theme.colors.onSurfaceVariant
+            }
+            onPress={() => onToggleFavorite(id)}
+            style={styles.bookmarkButton}
+          />
         </View>
       </View>
     </Card>
   );
 };
+
+const styles = StyleSheet.create({
+  card: {
+    borderRadius: 16,
+    marginBottom: 16,
+  },
+  image: {
+    width: "100%",
+    height: 180,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  textContainer: {
+    flex: 1,
+    padding: 16,
+  },
+  chipContainer: {
+    marginBottom: 8,
+    alignSelf: "flex-start",
+  },
+  title: {
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  summary: {
+    opacity: 0.8,
+    marginBottom: 8,
+  },
+  metricsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    justifyContent: "flex-start",
+  },
+  metricItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  metricText: {
+    fontSize: 12,
+    color: "#666",
+    marginLeft: -8,
+  },
+  iconButton: {
+    margin: 0,
+    padding: 0,
+  },
+  bookmarkButton: {
+    marginLeft: "auto",
+    margin: 0,
+    padding: 0,
+    height: 20,
+    width: 20,
+  },
+});
 
 export default ArticleCard;
