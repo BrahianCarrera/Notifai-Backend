@@ -98,6 +98,112 @@ const getArticles = async (req, res) => {
   }
 };
 
+const getBookmarkedArticles = async (req, res) => {
+  try {
+    // Es crucial que el ID del usuario esté disponible a través de req.user.id
+    const userId = req.user?.id; 
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Acceso no autorizado. Se requiere un usuario autenticado.'
+      });
+    }
+
+    const {
+      page = 1,
+      limit = 10,
+      sort = 'published_at',
+      order = 'desc'
+    } = req.query;
+
+    const offset = (page - 1) * limit;
+    
+    let whereClause = 'WHERE a.is_published = true';
+    const queryParams = [];
+    let paramCount = 0;
+
+    const validSorts = ['published_at', 'created_at', 'views_count', 'likes_count', 'title'];
+    const validOrders = ['asc', 'desc'];
+    const sortField = validSorts.includes(sort) ? sort : 'published_at';
+    const sortOrder = validOrders.includes(order.toLowerCase()) ? order.toUpperCase() : 'DESC';
+
+    const articlesQuery = `
+      SELECT 
+        a.id,
+        a.title,
+        a.summary,
+        a.image_url,
+        a.published_at,
+        a.views_count,
+        a.likes_count,
+        a.tags,
+        u.name as author_name,
+        c.name as category_name,
+        c.color as category_color,
+        -- Como solo seleccionamos favoritos, is_favorite siempre será true.
+        true as is_favorite, 
+        CASE WHEN al.user_id IS NOT NULL THEN true ELSE false END as is_liked
+      FROM articles a
+      
+      -- *** CAMBIO CLAVE 1: INNER JOIN a user_favorites (uf) ***
+      INNER JOIN user_favorites uf ON a.id = uf.article_id 
+      
+      LEFT JOIN users u ON a.author_id = u.id
+      LEFT JOIN categories c ON a.category_id = c.id
+      -- El LEFT JOIN para likes sigue siendo necesario para saber si el usuario le dio like.
+      LEFT JOIN article_likes al ON a.id = al.article_id AND al.user_id = $${paramCount + 2}
+
+      ${whereClause} 
+      -- *** CAMBIO CLAVE 2: Condición para filtrar por usuario en user_favorites ***
+      AND uf.user_id = $${paramCount + 1}
+      
+      ORDER BY a.${sortField} ${sortOrder}
+      LIMIT $${paramCount + 3} OFFSET $${paramCount + 4}
+    `;
+
+    queryParams.push(userId, userId, limit, offset);
+
+    const articles = await query(articlesQuery, queryParams);
+
+    const countQuery = `
+      SELECT COUNT(a.id) as total
+      FROM articles a
+      INNER JOIN user_favorites uf ON a.id = uf.article_id 
+      ${whereClause}
+      AND uf.user_id = $1 -- Solo contamos los favoritos de este usuario
+    `;
+    const countParams = [userId];
+    
+    const countResult = await query(countQuery, countParams);
+    const total = parseInt(countResult.rows[0].total);
+
+    res.json({
+      success: true,
+      data: {
+        articles: articles.rows.map(article => ({
+            ...article,
+            views: article.views_count, 
+            likes: article.likes_count, 
+            isBookmarked: article.is_favorite, 
+        })),
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error obteniendo artículos favoritos:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor'
+    });
+  }
+};
+
 // Obtener artículo por ID
 const getArticleById = async (req, res) => {
   try {
@@ -417,49 +523,62 @@ const toggleLike = async (req, res) => {
       });
     }
 
-    // Verificar si ya tiene like
     const likeResult = await query(
       'SELECT id FROM article_likes WHERE user_id = $1 AND article_id = $2',
       [userId, id]
     );
 
+    let is_liked_new_state;
+
     if (likeResult.rows.length > 0) {
-      // Remover like
+      // 1. Remover like
       await query(
         'DELETE FROM article_likes WHERE user_id = $1 AND article_id = $2',
         [userId, id]
       );
 
-      // Decrementar contador
+      // 2. Decrementar contador
       await query(
         'UPDATE articles SET likes_count = GREATEST(likes_count - 1, 0) WHERE id = $1',
         [id]
       );
+      is_liked_new_state = false;
 
-      res.json({
-        success: true,
-        message: 'Like removido',
-        data: { is_liked: false }
-      });
     } else {
-      // Agregar like
+      // 1. Agregar like
       await query(
         'INSERT INTO article_likes (user_id, article_id) VALUES ($1, $2)',
         [userId, id]
       );
 
-      // Incrementar contador
+      // 2. Incrementar contador
       await query(
         'UPDATE articles SET likes_count = likes_count + 1 WHERE id = $1',
         [id]
       );
-
-      res.json({
-        success: true,
-        message: 'Like agregado',
-        data: { is_liked: true }
-      });
+      is_liked_new_state = true;
     }
+
+    // --- NUEVO PASO CRUCIAL ---
+    // 3. Obtener el contador de likes actualizado después de la operación
+    const updatedCountResult = await query(
+      'SELECT likes_count FROM articles WHERE id = $1',
+      [id]
+    );
+
+    const updatedLikesCount = updatedCountResult.rows[0]?.likes_count || 0;
+
+    // 4. Retornar el nuevo estado y el conteo actualizado
+    res.json({
+      success: true,
+      message: is_liked_new_state ? 'Like agregado' : 'Like removido',
+      // ¡Ahora devolvemos likes_count!
+      data: { 
+        is_liked: is_liked_new_state,
+        likes_count: updatedLikesCount 
+      }
+    });
+
   } catch (error) {
     console.error('Error gestionando likes:', error);
     res.status(500).json({
@@ -471,6 +590,7 @@ const toggleLike = async (req, res) => {
 
 module.exports = {
   getArticles,
+  getBookmarkedArticles,
   getArticleById,
   createArticle,
   updateArticle,

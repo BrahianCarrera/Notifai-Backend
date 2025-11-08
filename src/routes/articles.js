@@ -7,7 +7,8 @@ const {
   updateArticle,
   deleteArticle,
   toggleFavorite,
-  toggleLike
+  toggleLike,
+  getBookmarkedArticles
 } = require('../controllers/articleController');
 const { authenticateSession, optionalAuth, requireAdmin } = require('../middleware/auth');
 const {
@@ -18,8 +19,10 @@ const {
 } = require('../middleware/validation');
 
 // Rutas públicas
+router.get('/bookmarks', authenticateSession, validateArticleQuery, getBookmarkedArticles);
 router.get('/', optionalAuth, validateArticleQuery, getArticles);
 router.get('/:id', optionalAuth, validateId, getArticleById);
+
 
 // Rutas protegidas
 router.post('/', validateArticleCreation, createArticle);
