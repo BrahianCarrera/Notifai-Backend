@@ -56,7 +56,7 @@ const validateArticleCreation = [
   body('summary')
     .optional()
     .trim()
-    .isLength({ max: 300 })
+    .isLength({ max: 600 })
     .withMessage('El resumen no puede exceder 300 caracteres'),
   body('category_id')
     .isInt({ min: 1 })
