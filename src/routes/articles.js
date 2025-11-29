@@ -8,7 +8,8 @@ const {
   deleteArticle,
   toggleFavorite,
   toggleLike,
-  getBookmarkedArticles
+  getBookmarkedArticles,
+  triggerFetchNews
 } = require('../controllers/articleController');
 const { authenticateSession, optionalAuth, requireAdmin } = require('../middleware/auth');
 const {
@@ -25,6 +26,7 @@ router.get('/:id', optionalAuth, validateId, getArticleById);
 
 
 // Rutas protegidas
+router.post('/fetch-news', triggerFetchNews);
 router.post('/', validateArticleCreation, createArticle);
 router.put('/:id', authenticateSession, validateId, validateArticleUpdate, updateArticle);
 router.delete('/:id', authenticateSession, validateId, deleteArticle);
@@ -33,4 +35,4 @@ router.delete('/:id', authenticateSession, validateId, deleteArticle);
 router.post('/:id/favorite', authenticateSession, validateId, toggleFavorite);
 router.post('/:id/like', authenticateSession, validateId, toggleLike);
 
-module.exports = router
+module.exports = router;

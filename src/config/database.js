@@ -1,44 +1,60 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-const isProd = process.env.NODE_ENV === 'production';
+let pool;
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: isProd
-    ? { rejectUnauthorized: false }  // Render -> Supabase requiere SSL
-    : false,                         // Local no usa SSL
-});
+if (process.env.NODE_ENV === 'production') {
+  console.log("🔗 Usando conexión REMOTA (Render)");
 
-// Manejo de errores de conexión
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 1,
+    idleTimeoutMillis: 0,
+  });
+
+} else {
+  console.log("🛠 Usando conexión LOCAL (desarrollo)");
+
+  pool = new Pool({
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 5432,
+    database: process.env.DB_NAME || 'notifai_db',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD,
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
+  });
+}
+
 pool.on('error', (err) => {
-  console.error('Error inesperado en el cliente PostgreSQL:', err);
+  console.error('❌ Error inesperado en PostgreSQL:', err);
   process.exit(-1);
 });
 
-// Probar conexión
-const testConnection = async () => {
+const query = async (text, params) => {
+  const start = Date.now();
   try {
-    const client = await pool.connect();
-    console.log('✅ Conexión a PostgreSQL establecida correctamente');
-    client.release();
-    return true;
+    const res = await pool.query(text, params);
+    const duration = Date.now() - start;
+    console.log('🔎 Query ejecutada:', { text, duration, rows: res.rowCount });
+    return res;
   } catch (err) {
-    console.error('❌ Error al conectar con PostgreSQL:', err.message);
-    return false;
+    console.error('❌ Error en query:', err);
+    throw err;
   }
 };
 
-const query = async (text, params) => {
+const testConnection = async () => {
   try {
-    const start = Date.now();
-    const res = await pool.query(text, params);
-    const duration = Date.now() - start;
-    console.log('Query ejecutada:', { text, duration, rows: res.rowCount });
-    return res;
+    const client = await pool.connect();
+    console.log('👌 Conexión a PostgreSQL exitosa');
+    client.release();
+    return true;
   } catch (err) {
-    console.error('Error en query:', err);
-    throw err;
+    console.error('⚠️ Error al conectar con PostgreSQL:', err.message);
+    return false;
   }
 };
 
