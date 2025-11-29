@@ -1,6 +1,7 @@
 require('dotenv').config();
 const axios = require('axios');
 const cron = require('node-cron');
+const cheerio = require('cheerio');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -18,20 +19,57 @@ async function fetchFullArticleContent(url) {
     });
 
     if (response.data) {
-      // Remover etiquetas HTML basicas y scripts
-      let text = response.data
-        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+      const $ = cheerio.load(response.data);
 
-      // Limitar a un tamaño razonable (primeros 8000 caracteres)
+      // Remover elementos no deseados
+      $('script, style, nav, header, footer, aside, .advertisement, .ad, .social-share, .related-articles').remove();
+
+      // Intentar encontrar el contenido principal usando selectores comunes
+      const selectors = [
+        'article p',
+        '.article-body p',
+        '.article-content p',
+        '.story-body p',
+        '.post-content p',
+        'main p',
+        '[role="main"] p',
+        '.entry-content p'
+      ];
+
+      let paragraphs = [];
+
+      for (const selector of selectors) {
+        const elements = $(selector);
+        if (elements.length > 3) { // Si encontramos al menos 3 parrafos
+          elements.each((i, elem) => {
+            const text = $(elem).text().trim();
+            if (text.length > 50) { // Solo parrafos con contenido sustancial
+              paragraphs.push(text);
+            }
+          });
+          break;
+        }
+      }
+
+      // Si no encontramos nada con los selectores, usar todos los parrafos
+      if (paragraphs.length === 0) {
+        $('p').each((i, elem) => {
+          const text = $(elem).text().trim();
+          if (text.length > 50) {
+            paragraphs.push(text);
+          }
+        });
+      }
+
+      // Unir los parrafos y limpiar
+      let text = paragraphs.join('\n\n').trim();
+
+      // Limitar a un tamaño razonable
       if (text.length > 8000) {
         text = text.substring(0, 8000);
       }
 
-      console.log(`Contenido descargado: ${text.length} caracteres`);
+      console.log(`Contenido descargado: ${text.length} caracteres, ${paragraphs.length} parrafos`);
       return text;
     }
 

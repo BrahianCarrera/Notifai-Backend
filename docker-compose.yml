@@ -39,6 +39,7 @@ services:
       DB_NAME: notifai_db
       DB_USER: postgres
       DB_PASSWORD: notifai_password
+      DATABASE_URL: postgresql://postgres:notifai_password@postgres:5432/notifai_db
       SESSION_SECRET: notifai_super_secret_session_key_2024
       RATE_LIMIT_WINDOW_MS: 900000
       RATE_LIMIT_MAX_REQUESTS: 100
