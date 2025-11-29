@@ -43,9 +43,8 @@ async function fetchFullArticleContent(url) {
 }
 
 // Configuracion
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3000/api/articles";
+const BACKEND_URL = "https://notifai-backend.onrender.com/api/articles";
 const NEWS_API_URL = `https://newsapi.org/v2/top-headlines?country=us&apiKey=${process.env.NEWS_API_KEY}`;
-const SESSION_COOKIE = process.env.SESSION_COOKIE;
 
 // Obtener noticias
 async function fetchNews() {
@@ -183,8 +182,7 @@ async function saveArticle(article, processed) {
   try {
     await axios.post(BACKEND_URL, payload, {
       headers: {
-        "Content-Type": "application/json",
-        Cookie: `connect.sid=${SESSION_COOKIE}`
+        "Content-Type": "application/json"
       }
     });
     console.log(`Noticia guardada: ${payload.title} (Categoria ${categoryId || 1})`);
@@ -219,3 +217,5 @@ async function processNews() {
 if (require.main === module) {
   processNews();
 }
+
+module.exports = { processNews };

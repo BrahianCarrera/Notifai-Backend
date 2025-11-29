@@ -1,4 +1,5 @@
 const { query } = require('../config/database');
+const { processNews } = require('../../scripts/fetch-news');
 
 // Obtener todos los artículos con filtros y paginación
 const getArticles = async (req, res) => {
@@ -588,6 +589,32 @@ const toggleLike = async (req, res) => {
   }
 };
 
+// Disparar proceso de obtención de noticias
+const triggerFetchNews = async (req, res) => {
+  try {
+    console.log('Iniciando proceso manual de obtención de noticias...');
+    
+    // Ejecutar el proceso (esto puede tardar)
+    // Opción 1: Esperar a que termine (puede dar timeout si es muy largo)
+    await processNews();
+    
+    // Opción 2: Ejecutar en background (responder rápido)
+    // processNews().catch(err => console.error('Error en background processNews:', err));
+
+    res.json({
+      success: true,
+      message: 'Proceso de obtención de noticias completado exitosamente'
+    });
+  } catch (error) {
+    console.error('Error ejecutando fetchNews:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al ejecutar el proceso de noticias',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getArticles,
   getBookmarkedArticles,
@@ -596,6 +623,7 @@ module.exports = {
   updateArticle,
   deleteArticle,
   toggleFavorite,
-  toggleLike
+  toggleLike,
+  triggerFetchNews
 };
 

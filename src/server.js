@@ -51,12 +51,15 @@ app.use(session({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Configuración de CORS - Permitir todos los orígenes para desarrollo local
+// Configuración de CORS - Permitir todos los orígenes para desarrollo local y móvil
 app.use(cors({
-  origin: true, // Permitir todos los orígenes (temporal para desarrollo local)
+  origin: function (origin, callback) {
+    // Permitir cualquier origen (incluyendo solicitudes sin origen como apps móviles o curl)
+    callback(null, true);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Requested-With', 'Accept']
 }));
 
 // Middleware de logging
